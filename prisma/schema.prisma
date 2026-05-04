@@ -1,0 +1,94 @@
+// MFXAI Chat - Prisma Schema
+// Multi-Model AI Chatbot dengan Multi-Modal Support
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// API Providers configuration
+model ChatApiProvider {
+  id        String   @id @default(cuid())
+  name      String   @unique // openai, anthropic, google, mistral, together
+  apiKey    String?  // Encrypted API key
+  baseUrl   String?  // Custom base URL if needed
+  isActive  Boolean  @default(true)
+  models    ChatModel[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// AI Models configuration
+model ChatModel {
+  id           String          @id @default(cuid())
+  name         String          @unique // gpt-4o, claude-3-opus, gemini-pro, etc.
+  displayName  String          // GPT-4o, Claude 3 Opus, etc.
+  provider     String          // openai, anthropic, google, mistral, together
+  providerId   String?
+  type         String          // chat, image, multimodal
+  capabilities String?         // JSON: ["chat", "image", "vision"]
+  maxTokens    Int             @default(4096)
+  isActive     Boolean         @default(true)
+  sortOrder    Int             @default(0)
+  providerRel  ChatApiProvider? @relation(fields: [providerId], references: [id])
+  sessions     ChatSession[]
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+// Access codes for authentication
+model ChatAccessCode {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  name        String?  // Optional name for the code
+  tier        String   @default("basic") // basic, pro, enterprise
+  maxRequests Int      @default(100)
+  usedRequests Int     @default(0)
+  expiresAt   DateTime?
+  isActive    Boolean  @default(true)
+  users       ChatUser[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Users (authenticated via access code)
+model ChatUser {
+  id           String        @id @default(cuid())
+  accessCodeId String
+  accessCode   ChatAccessCode @relation(fields: [accessCodeId], references: [id])
+  sessions     ChatSession[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+// Chat sessions
+model ChatSession {
+  id          String        @id @default(cuid())
+  userId      String
+  user        ChatUser      @relation(fields: [userId], references: [id])
+  modelId     String?
+  model       ChatModel?    @relation(fields: [modelId], references: [id])
+  title       String?
+  messages    ChatMessage[]
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+// Chat messages
+model ChatMessage {
+  id        String      @id @default(cuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String      // user, assistant, system
+  content   String      // Text content or image URL
+  imageUrls String?     // JSON array of image URLs for multimodal
+  model     String?     // Model used for this message
+  tokens    Int?        // Token count
+  metadata  String?     // JSON for additional metadata
+  createdAt DateTime    @default(now())
+}
