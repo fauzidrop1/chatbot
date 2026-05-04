@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { LoginForm } from '@/components/auth/login-form';
 import { ChatInterface } from '@/components/chat/chat-interface';
-import { useAuthStore } from '@/store/chat-store';
+import { AdminDashboard } from '@/components/admin/admin-dashboard';
+import { useAuthStore, useAdminStore } from '@/store/chat-store';
 import { Loader2 } from 'lucide-react';
 
 export default function Home() {
@@ -13,6 +14,14 @@ export default function Home() {
       user: state.user,
       isAuthenticated: state.isAuthenticated,
       setUser: state.setUser,
+    }))
+  );
+
+  const { isAdmin, adminUser, setAdmin } = useAdminStore(
+    useShallow((state) => ({
+      isAdmin: state.isAdmin,
+      adminUser: state.adminUser,
+      setAdmin: state.setAdmin,
     }))
   );
 
@@ -38,13 +47,21 @@ export default function Home() {
 
   // Check for existing session
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if ((isAuthenticated && user) || (isAdmin && adminUser)) {
       setIsLoading(false);
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, isAdmin, adminUser]);
 
   const handleLogin = (loggedInUser: any) => {
     setUser(loggedInUser);
+  };
+
+  const handleAdminLogin = (admin: any) => {
+    setAdmin(true, admin);
+  };
+
+  const handleAdminLogout = () => {
+    setAdmin(false, null);
   };
 
   if (isLoading || !isInitialized) {
@@ -58,9 +75,16 @@ export default function Home() {
     );
   }
 
-  if (!isAuthenticated) {
-    return <LoginForm onLogin={handleLogin} />;
+  // If admin is logged in, show admin dashboard
+  if (isAdmin && adminUser) {
+    return <AdminDashboard admin={adminUser} onLogout={handleAdminLogout} />;
   }
 
-  return <ChatInterface />;
+  // If user is logged in, show chat interface
+  if (isAuthenticated && user) {
+    return <ChatInterface />;
+  }
+
+  // Show login form
+  return <LoginForm onLogin={handleLogin} onAdminLogin={handleAdminLogin} />;
 }

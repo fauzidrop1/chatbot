@@ -1,5 +1,6 @@
 // MFXAI Chat - Prisma Schema
 // Multi-Model AI Chatbot dengan Multi-Modal Support
+// With separate Admin/User accounts and Rate Limiting
 
 generator client {
   provider = "prisma-client-js"
@@ -10,16 +11,38 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// API Providers configuration
-model ChatApiProvider {
+// Admin Users - Separate from regular users
+model AdminUser {
   id        String   @id @default(cuid())
-  name      String   @unique // openai, anthropic, google, mistral, together
-  apiKey    String?  // Encrypted API key
-  baseUrl   String?  // Custom base URL if needed
+  username  String   @unique
+  password  String   // Hashed password
+  name      String?
+  email     String?
+  role      String   @default("admin") // admin, superadmin
   isActive  Boolean  @default(true)
-  models    ChatModel[]
+  lastLogin DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// API Providers configuration with rate limits
+model ChatApiProvider {
+  id           String   @id @default(cuid())
+  name         String   @unique // openai, anthropic, google, mistral, together
+  displayName  String   // OpenAI, Anthropic, etc.
+  apiKey       String?  // Encrypted API key (hidden by default)
+  baseUrl      String?  // Custom API endpoint URL
+  isActive     Boolean  @default(true)
+  
+  // Default Rate Limits (can be overridden per tier)
+  defaultRpm   Int      @default(60)   // Requests Per Minute
+  defaultRpd   Int      @default(1000) // Requests Per Day
+  defaultTpm   Int      @default(100000) // Tokens Per Minute
+  defaultTpd   Int      @default(500000) // Tokens Per Day
+  
+  models       ChatModel[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 // AI Models configuration
@@ -40,19 +63,32 @@ model ChatModel {
   updatedAt    DateTime        @updatedAt
 }
 
-// Access codes for authentication
+// Access codes for authentication with tier limits
 model ChatAccessCode {
-  id          String   @id @default(cuid())
-  code        String   @unique
-  name        String?  // Optional name for the code
-  tier        String   @default("basic") // basic, pro, enterprise
-  maxRequests Int      @default(100)
-  usedRequests Int     @default(0)
-  expiresAt   DateTime?
-  isActive    Boolean  @default(true)
-  users       ChatUser[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  code         String   @unique
+  name         String?  // Optional name/description for the code
+  tier         String   @default("basic") // basic, pro, enterprise
+  
+  // Tier Limits (customizable per code, defaults from tier)
+  rpm          Int      @default(30)    // Requests Per Minute
+  rpd          Int      @default(200)   // Requests Per Day
+  tpm          Int      @default(60000) // Tokens Per Minute
+  tpd          Int      @default(200000) // Tokens Per Day
+  imagesPerDay Int      @default(20)    // Images Per Day
+  
+  maxUsers     Int      @default(1)     // Max users for this code
+  userCount    Int      @default(0)     // Current user count
+  maxRequests  Int      @default(100)   // Legacy: total requests limit
+  usedRequests Int      @default(0)     // Legacy: used requests count
+  
+  expiresAt    DateTime?  // Expiration date
+  expirationDays Int?    // Days until expiration from creation
+  
+  isActive     Boolean  @default(true)
+  users        ChatUser[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 // Users (authenticated via access code)
@@ -61,6 +97,7 @@ model ChatUser {
   accessCodeId String
   accessCode   ChatAccessCode @relation(fields: [accessCodeId], references: [id])
   sessions     ChatSession[]
+  usageLogs    ChatUsageLog[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 }
@@ -91,4 +128,61 @@ model ChatMessage {
   tokens    Int?        // Token count
   metadata  String?     // JSON for additional metadata
   createdAt DateTime    @default(now())
+}
+
+// Usage logs for rate limiting per user
+model ChatUsageLog {
+  id           String   @id @default(cuid())
+  userId       String
+  user         ChatUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Date for daily tracking
+  date         DateTime // Date only (without time)
+  
+  // Request counts
+  chatRequests   Int    @default(0)
+  imageRequests  Int    @default(0)
+  
+  // Token counts
+  inputTokens    Int    @default(0)
+  outputTokens   Int    @default(0)
+  
+  // Minute-level tracking (for RPM/TPM)
+  minuteLogs     String? // JSON: { "14:30": { requests: 5, tokens: 1000 }, ... }
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([userId, date]) // One record per user per day
+}
+
+// Daily aggregated statistics
+model ChatDailyStats {
+  id              String   @id @default(cuid())
+  date            DateTime @unique
+  
+  // User stats
+  newUsers        Int      @default(0)
+  activeUsers     Int      @default(0)
+  
+  // Session stats
+  newSessions     Int      @default(0)
+  
+  // Message stats
+  totalMessages   Int      @default(0)
+  
+  // Request stats
+  chatRequests    Int      @default(0)
+  imageRequests   Int      @default(0)
+  
+  // Token stats
+  totalTokens     Int      @default(0)
+  inputTokens     Int      @default(0)
+  outputTokens    Int      @default(0)
+  
+  // Model usage (JSON)
+  modelUsage      String?  // JSON: { "gpt-4o": 100, "claude-3": 50, ... }
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }

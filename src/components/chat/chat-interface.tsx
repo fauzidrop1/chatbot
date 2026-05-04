@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ChatMessage, LoadingMessage } from './chat-message';
@@ -8,7 +8,7 @@ import { ChatInput } from './chat-input';
 import { ModelSelector } from './model-selector';
 import { SessionSidebar } from './session-sidebar';
 import { AdminDashboard } from '@/components/admin/admin-dashboard';
-import { useAuthStore, useChatStore, useSessionStore, useModelsStore } from '@/store/chat-store';
+import { useAuthStore, useChatStore, useSessionStore, useModelsStore, useAdminStore } from '@/store/chat-store';
 import { Menu, Sparkles, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -18,6 +18,15 @@ export function ChatInterface() {
   // Auth state
   const { user, logout } = useAuthStore(
     useShallow((state) => ({ user: state.user, logout: state.logout }))
+  );
+
+  // Admin state
+  const { isAdmin, adminUser, logout: adminLogout } = useAdminStore(
+    useShallow((state) => ({ 
+      isAdmin: state.isAdmin, 
+      adminUser: state.adminUser,
+      logout: state.logout 
+    }))
   );
 
   // Chat state
@@ -413,8 +422,15 @@ export function ChatInterface() {
     setCurrentSession(null);
   }, [logout, setMessages, setSessions, setCurrentSessionId, setCurrentSession]);
 
-  if (showAdmin) {
-    return <AdminDashboard onClose={() => setShowAdmin(false)} />;
+  // Handle admin logout
+  const handleAdminLogout = useCallback(() => {
+    adminLogout();
+    setShowAdmin(false);
+  }, [adminLogout]);
+
+  // If admin is logged in and showing admin dashboard
+  if (isAdmin && showAdmin) {
+    return <AdminDashboard admin={adminUser} onLogout={handleAdminLogout} />;
   }
 
   const isLoading = isStreaming || isGeneratingImage;

@@ -221,10 +221,11 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
 // Admin Store
 interface AdminStore {
   isAdmin: boolean;
+  adminUser: any | null;
   adminToken: string | null;
   
   // Actions
-  setAdmin: (isAdmin: boolean, token?: string) => void;
+  setAdmin: (isAdmin: boolean, adminUser?: any, token?: string) => void;
   logout: () => void;
 }
 
@@ -232,19 +233,26 @@ export const useAdminStore = create<AdminStore>()(
   persist(
     (set) => ({
       isAdmin: false,
+      adminUser: null,
       adminToken: null,
       
-      setAdmin: (isAdmin, adminToken = null) => set({ 
+      setAdmin: (isAdmin, adminUser = null, adminToken = null) => set({ 
         isAdmin, 
+        adminUser,
         adminToken 
       }),
       logout: () => set({ 
         isAdmin: false, 
+        adminUser: null,
         adminToken: null 
       }),
     }),
     {
       name: 'mfxai-admin',
+      partialize: (state) => ({ 
+        isAdmin: state.isAdmin, 
+        adminUser: state.adminUser 
+      }),
     }
   )
 );

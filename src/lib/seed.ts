@@ -1,7 +1,81 @@
 // MFXAI Chat - Seed Data
-// Default models and access codes
+// Default models, access codes, admin users, and providers
 
 import { db } from './db';
+
+// Default Tier Limits
+export const tierDefaults = {
+  basic: {
+    rpm: 30,
+    rpd: 200,
+    tpm: 60000,
+    tpd: 200000,
+    imagesPerDay: 20,
+  },
+  pro: {
+    rpm: 60,
+    rpd: 1000,
+    tpm: 120000,
+    tpd: 500000,
+    imagesPerDay: 50,
+  },
+  enterprise: {
+    rpm: 200,
+    rpd: 10000,
+    tpm: 500000,
+    tpd: 5000000,
+    imagesPerDay: 200,
+  },
+};
+
+// Default API Providers
+export const defaultProviders = [
+  {
+    name: 'openai',
+    displayName: 'OpenAI',
+    defaultRpm: 60,
+    defaultRpd: 1000,
+    defaultTpm: 100000,
+    defaultTpd: 500000,
+    isActive: true,
+  },
+  {
+    name: 'anthropic',
+    displayName: 'Anthropic',
+    defaultRpm: 60,
+    defaultRpd: 1000,
+    defaultTpm: 100000,
+    defaultTpd: 500000,
+    isActive: true,
+  },
+  {
+    name: 'google',
+    displayName: 'Google AI',
+    defaultRpm: 60,
+    defaultRpd: 1500,
+    defaultTpm: 100000,
+    defaultTpd: 500000,
+    isActive: true,
+  },
+  {
+    name: 'mistral',
+    displayName: 'Mistral AI',
+    defaultRpm: 60,
+    defaultRpd: 1000,
+    defaultTpm: 100000,
+    defaultTpd: 500000,
+    isActive: true,
+  },
+  {
+    name: 'together',
+    displayName: 'Together AI',
+    defaultRpm: 60,
+    defaultRpd: 1000,
+    defaultTpm: 100000,
+    defaultTpd: 500000,
+    isActive: true,
+  },
+];
 
 // Default AI Models
 export const defaultModels = [
@@ -178,12 +252,15 @@ export const defaultModels = [
   },
 ];
 
-// Default Access Codes
+// Default Access Codes with tier limits
 export const defaultAccessCodes = [
   {
     code: 'DEMO2024',
     name: 'Demo Pro Access',
     tier: 'pro',
+    ...tierDefaults.pro,
+    maxUsers: 10,
+    userCount: 0,
     maxRequests: 1000,
     usedRequests: 0,
     isActive: true,
@@ -192,8 +269,33 @@ export const defaultAccessCodes = [
     code: 'TEST123',
     name: 'Test Basic Access',
     tier: 'basic',
+    ...tierDefaults.basic,
+    maxUsers: 5,
+    userCount: 0,
     maxRequests: 100,
     usedRequests: 0,
+    isActive: true,
+  },
+  {
+    code: 'ADMIN2024',
+    name: 'Admin Dashboard Access',
+    tier: 'enterprise',
+    ...tierDefaults.enterprise,
+    maxUsers: 1,
+    userCount: 0,
+    maxRequests: 10000,
+    usedRequests: 0,
+    isActive: true,
+  },
+];
+
+// Default Admin User
+export const defaultAdminUsers = [
+  {
+    username: 'admin',
+    password: 'admin123', // In production, this should be hashed
+    name: 'Administrator',
+    role: 'superadmin',
     isActive: true,
   },
 ];
@@ -201,7 +303,17 @@ export const defaultAccessCodes = [
 // Seed the database
 export async function seedDatabase() {
   try {
-    // Check if models already exist
+    // Seed Providers
+    const existingProviders = await db.chatApiProvider.count();
+    if (existingProviders === 0) {
+      console.log('Seeding providers...');
+      await db.chatApiProvider.createMany({
+        data: defaultProviders,
+      });
+      console.log(`Created ${defaultProviders.length} providers`);
+    }
+    
+    // Seed Models
     const existingModels = await db.chatModel.count();
     if (existingModels === 0) {
       console.log('Seeding models...');
@@ -211,7 +323,7 @@ export async function seedDatabase() {
       console.log(`Created ${defaultModels.length} models`);
     }
     
-    // Check if access codes already exist
+    // Seed Access Codes
     const existingCodes = await db.chatAccessCode.count();
     if (existingCodes === 0) {
       console.log('Seeding access codes...');
@@ -221,9 +333,24 @@ export async function seedDatabase() {
       console.log(`Created ${defaultAccessCodes.length} access codes`);
     }
     
+    // Seed Admin Users
+    const existingAdmins = await db.adminUser.count();
+    if (existingAdmins === 0) {
+      console.log('Seeding admin users...');
+      await db.adminUser.createMany({
+        data: defaultAdminUsers,
+      });
+      console.log(`Created ${defaultAdminUsers.length} admin users`);
+    }
+    
     return { success: true };
   } catch (error) {
     console.error('Seed error:', error);
     return { success: false, error };
   }
+}
+
+// Get tier defaults
+export function getTierDefaults(tier: string) {
+  return tierDefaults[tier as keyof typeof tierDefaults] || tierDefaults.basic;
 }
